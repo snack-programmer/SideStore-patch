@@ -41,7 +41,15 @@ final class PairingFileManager: NSObject {
     }
 
     nonisolated func pairingFileURL(for mode: PairingProtocol) -> URL {
-        let fileName = mode == .rppairing ? AppConstants.Pairing.remotePairingFileName : AppConstants.Pairing.lockdownPairingFileName
+        let fileName: String
+        switch mode {
+        case .rppairing:
+            fileName = AppConstants.Pairing.remotePairingFileName
+        case .lockdown:
+            fileName = AppConstants.Pairing.lockdownPairingFileName
+        default:
+            fileName = AppConstants.Pairing.legacyPairingFileName
+        }
         return FileManager.default.documentsDirectory.appendingPathComponent(fileName)
     }
 
@@ -84,12 +92,68 @@ final class PairingFileManager: NSObject {
         }
         return nil
     }
+    
+    nonisolated func sanitizePairingFileFor(contents: String, pprotocol: PairingProtocol) -> String {
+        guard let plistData = contents.data(using: .utf8) else {
+            return contents
+        }
+        guard let plist = try? PropertyListSerialization.propertyList(from: plistData, format: nil) as? [String : Sendable] else {
+            return contents
+        }
+        
+        let requiredKeys: [String]
+        if pprotocol == .rppairing {
+            requiredKeys = [
+                "private_key",
+                "public_key",
+                "identifier"
+            ]
+        } else if pprotocol == .rppairing {
+            requiredKeys = [
+                "WiFiMACAddress",
+                "SystemBUID",
+                "RootPrivateKey",
+                "HostPrivateKey",
+                "HostID",
+                "RootCertificate",
+                "UDID",
+                "EscrowBag",
+                "HostCertificate",
+                "DeviceCertificate"
+            ]
+        } else {
+            return contents
+        }
+        
+        if !(requiredKeys.filter { plist[$0] == nil }.isEmpty) {
+            return contents
+        }
+    
+        var ansDict : [String : Sendable] = [:]
+        for key in requiredKeys {
+            ansDict[key] = plist[key]
+        }
+        return String(data: try! PropertyListSerialization.data(fromPropertyList: ansDict, format: .xml, options: 0), encoding: .utf8)!
+    }
 
     nonisolated func fetchPairingFile(preferred: PairingProtocol? = nil) -> String? {
-        guard !UserDefaults.standard.isPairingReset else { return nil }
         let targetPreferred = preferred ?? preferredProtocol
-        if let targetPreferred, let contents = fetchPairingFile(for: targetPreferred) {
-            return contents
+        if let targetPreferred {
+            if let contents = fetchPairingFile(for: targetPreferred) {
+                return sanitizePairingFileFor(contents: contents, pprotocol: targetPreferred)
+            }
+        } else {
+            if let contents = fetchPairingFile(for: .rppairing) {
+                return sanitizePairingFileFor(contents: contents, pprotocol: .rppairing)
+            } else if #available(iOS 26.4, *), let contents = fetchPairingFile(for: .lockdown) {
+                return sanitizePairingFileFor(contents: contents, pprotocol: .lockdown)
+            } else if let contents = fetchPairingFile(for: .unknown) {
+                if let _ = try? parse(content: contents, preferred: .rppairing) {
+                    return sanitizePairingFileFor(contents: contents, pprotocol: .rppairing)
+                } else {
+                    return sanitizePairingFileFor(contents: contents, pprotocol: .lockdown)
+                }
+            }
         }
         if let persisted = persistedActiveProtocol {
             return fetchPairingFile(for: persisted)
