@@ -808,7 +808,7 @@ struct AnisetteServersView: View {
                         .padding(.vertical, 8)
                     }
                 } else {
-                    ForEach(Array(viewModel.items.filter { !$0.isHidden }.enumerated()), id: \.element.id) { index, item in
+                    ForEach(Array(viewModel.visibleItems.enumerated()), id: \.element.id) { index, item in
                         serverRow(item, index: index)
                     }
                     .onMove(perform: viewModel.moveItems)
