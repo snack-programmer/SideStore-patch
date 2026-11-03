@@ -30,9 +30,9 @@ enum AnisetteProvider {
     static let macADIHosts: Set<String> = Set(macADIOrder)
     static let windowsADIHosts: Set<String> = ["win.ani.sidestore.io"]
 
-    /// SideInstaller `MAC_CLIENT_INFO` (grandslam.rs) — current Mac, not server's 10.12.
-    static let macClientInfo = "<MacBookPro18,3> <macOS;26.6;25F84> <com.apple.AuthKit/1 (com.apple.akd/1.0)>"
-    static let macUserAgent  = "AuthKit/1 (Macintosh; OS X 26.6) (com.apple.akd/1.0)"
+    /// 复用 AppConstants 中的唯一定义，避免同一字符串多处维护。
+    static let macClientInfo = AppConstants.Anisette.Servers.macClientInfo
+    static let macUserAgent  = AppConstants.Anisette.Servers.macUserAgent
 
     /// SideInstaller `AnisetteServer.fallback`
     static let fallbackServerURL = "https://new.ani.sidestore.io"
