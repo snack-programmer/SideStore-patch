@@ -303,14 +303,8 @@ enum AnisetteProvider {
             headers.userAgent = resolved.userAgent
         }
 
-        // SideSignHeaders.GrandSlam / AppleAuth only expose userAgent (not clientInfo).
-        // Client-info goes on the anisette headers + ALTAnisetteData below.
-        var gsConfig = await SideSignConfigManager.shared.loadConfig()
-        if !resolved.userAgent.isEmpty {
-            gsConfig.grandSlam.userAgent = resolved.userAgent
-            gsConfig.appleAuth.userAgent = resolved.userAgent
-        }
-        DeveloperPortal.shared.customHeaders = SideSignConfigManager.sanitizeForGrandSlam(gsConfig)
+        // 认证身份通过 AnisetteData / anisette headers 传递（SideSign 已改为消费调用方身份），
+        // 不再改写全局 DeveloperPortal.customHeaders，避免取数据时产生隐式副作用。
 
         let (anisetteData, newAdiBlob) = try await provider.fetchAnisetteDataWithFailover(
             servers: isAutoEnabled ? ordered : [ordered[startIndex]],
