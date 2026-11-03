@@ -43,15 +43,12 @@ public final class AppBootManager {
         // 1. On-Device Anisette OFF
         ud.useOnDeviceAnisette = false
 
-        // 2. Auto-rotation OFF
-        ud.disableAnisetteRotation = true
-
-        // 3. Default server only if none is selected (don't lock out manual picks later)
+        // 2. Default server only if none is selected (don't lock out manual picks later)
         if ud.menuAnisetteURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             ud.menuAnisetteURL = AppConstants.Anisette.Servers.defaultServerURL
         }
 
-        // 4. Put client info saved for a Windows PC or Android phone back to defaults
+        // 3. Put client info saved for a Windows PC or Android phone back to defaults
         ud.customAnisetteClientInfo = nil
         ud.customAnisetteUserAgent = nil
         // Also clear any file-based overrides
@@ -61,7 +58,7 @@ public final class AppBootManager {
         // 身份类错误（-45061/-80045/-80046）上按需重建，避免启动即销毁用户机器身份。
 
         ud.set(true, forKey: key)
-        debugLog("[AppBootManager] Applied SideInstaller 1.6.1 anisette migration (Mac path, ODA off, rotation off, SideStore New)")
+        debugLog("[AppBootManager] Applied anisette migration (Mac path, ODA off, official server)")
     }
 
     /// 清理旧版本写入 UserDefaults 的 adi.pb 明文副本（现在只存 Keychain）。

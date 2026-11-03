@@ -1,38 +1,101 @@
-# Full SideInstaller authentication parity (SideSign)
+# SideSign 认证与 anisette 身份说明
 
-This is not a one-line “fix”. SideSign’s `Authentication.swift` now follows SideInstaller’s **LoginState** machine from `apple_account.rs`.
+本文合并并取代 `WINDOWS_AUTH_FIX.md` 与旧的 `SIDEINSTALLER_AUTH.md`，描述当前代码
+（SideSign `cc14e41`、SideStore「adi.pb 只存 Keychain」之后）的登录、2FA 与机器身份模型。
 
-## State machine (2FA)
+## 1. 身份模型
 
-| SideInstaller state | Behavior |
-|---------------------|----------|
-| `NeedsDevice2FA` | GET trusted-device code (soft-fail OK) |
-| `NeedsDevice2FAVerification` | Prompt for device code; verify |
-| `NeedsSMS2FA(id)` | PUT JSON phone; on refuse → `NeedsDevice2FA` |
-| `NeedsSMS2FAVerification(id)` | Prompt for SMS code; verify; refuse → devices |
-| Success | Return → caller does **NeedsLogin** (login again) |
+一次登录只使用一套 `client-info` / `User-Agent`：
 
-## Always on (SideInstaller 1.6.1)
+| 层 | 责任 |
+|---|---|
+| `SideStore/AppConstants.swift` | 唯一定义 `macClientInfo` / `macUserAgent` |
+| `AnisetteProvider` | 根据服务器类型选择身份并写入 `AnisetteData` |
+| `SideSign` | 只消费调用方传入的 `AnisetteData`，不再内置设备字面量 |
 
-- `CURRENT_MAC` = MacBookPro18,3 / macOS 26.6 for Mac ADI servers
-- `MAC_CLIENT_INFO` = Mac15,7 only on bare 403 auth-page retry
-- Minimal 2FA headers (Device-Id, MD, MD-M, RINFO, Identity-Token)
-- Fresh OTP before verify + before login again (`adi.pb` when present)
-- Never show “Could not connect to iCloud” (PHONE_CODE_REFUSED → devices)
-- Fresh TCP connection per GSA request
+机器身份（`adi.pb`）只存 Keychain：
 
-## Files
+- `AnisetteConfigManager.anisetteAdiBlob` 是唯一持久化入口；
+- `SideSign` 通过注入的 `AnisetteIdentityStorage` 读写，不碰宿主 UserDefaults；
+- 旧版本写入的 `UserDefaults["SideSign.anisetteAdiBlob"]` 会在启动时删除。
 
-1. SideSign `Sources/DeveloperPortal/Authentication.swift`
-2. SideSign `Sources/Models/Errors.swift` (sanitize iCloud display)
-3. SideStore `SideStore/Core/Anisette/AnisetteProvider.swift` (Mac servers + adi blob for OTP refresh)
+> 结论：不要再引入第二处 `MacBookPro…` 字面量；如需换机型，只改 `AppConstants`。
 
-## How to test once
+## 2. 登录流程
 
-1. Rebuild SideSign (macOS CI green) + SideStore with matching submodule
-2. ODA off, rotation off
-3. Server: `https://new.ani.sidestore.io` or `https://mac-ani.jkcoxson.com`
-4. Reset adi.pb once
-5. One sign-in
+1. `Authentication: init` → `complete`（SRP）。
+2. 若 Apple 要求 2FA：按 `au` 字段进入设备码或手机码流程（见 §3）。
+3. 2FA 成功后，用**同一身份**重新登录：
+   - 先刷新一次 OTP（同一 `adi.pb`，只换 `X-Apple-I-MD`）；
+   - 最多 3 次尝试，退避 1s / 3s / 5s；
+   - 整体 60s deadline，超时返回可读错误。
 
-If SMS is refused, enter the **device** code — same as SideInstaller.
+最多允许两轮 2FA（首轮 + 重登后 Apple 再要求一次），第三轮报
+`tooManyAttempts`，避免无限循环。
+
+## 3. 2FA 渠道
+
+| 状态 | 行为 |
+|---|---|
+| `needsDevice2FA` | GET 设备码；Apple 不确认也可继续输入 |
+| `needsDevice2FAVerification` | 提示设备码并校验 |
+| `needsPhone2FA(id, mode)` | 按 `sms` / `voice` 发码 |
+| `needsPhone2FAVerification(id, mode)` | **用发码时的同一 `mode`** 提示并校验 |
+
+约束：
+
+- 发码与验证各最多 5 次，超限抛 `tooManyAttempts`；
+- 电话被拒（401/403/423、XMLUI 告警、iCloud 文案）自动回退设备码；
+- 5xx / 网关 / 限流保留真实错误，不伪装成“电话被拒”；
+- 手机号 id 必须为数字；非数字时按号码列表索引映射，失败即报错。
+
+## 4. 服务器选择
+
+| 设置 | 行为 |
+|---|---|
+| Auto 开 + 允许轮换 | 使用候选列表（官方优先），按最近失败记录跳过 |
+| Auto 开 + 关闭轮换 | 只用当前选中的服务器 |
+| Auto 关 | 只用当前选中的服务器 |
+
+默认服务器为官方 `https://new.ani.sidestore.io`。第三方 ADI 服务器不再自动加入
+候选列表，需要用户在“Anisette Servers”里显式添加；添加页会提示第三方可以看到
+设备身份。
+
+## 5. 身份恢复
+
+只有在明确的身份类错误上才清空 `adi.pb` 并重新 provision：
+
+- `-45061`、`-80045`、`-80046`
+- `invalid anisette`、`not provisioned`
+
+限流（429）、服务端 5xx、账号问题（密码错误等）**不会**清空身份，避免反复换
+身份加重 Apple 风控。
+
+启动流程不再清空 `adi.pb`；若旧身份损坏，首次登录失败后由上述错误触发重建。
+
+## 6. 验证
+
+```sh
+# SideSign
+cd SideSign-patch
+swift build
+swift test          # 5 tests
+
+# SideStore
+plutil -lint AltStore/Info.plist
+swiftc -frontend -parse SideStore/Core/Anisette/AnisetteProvider.swift
+```
+
+排障日志关键字（`debugLog`）：
+
+- `Post-2FA re-login attempt`
+- `phone 2FA (sms|voice) refused`
+- `Identity error — purging adi.pb`
+- `Auto=… rotation=…`
+
+## 7. 已知限制
+
+- On-Device Anisette 在新流程下不可用，`AnisetteProvider.fetch` 会保持关闭；
+  设置界面的开关目前仍可见，后续应隐藏或标注为不可用。
+- 第三方 anisette 服务器需要手动添加，Auto 不再自动覆盖。
+- 2FA 重登总时长受 60s deadline 约束；单次请求超时可能使实际耗时略高。

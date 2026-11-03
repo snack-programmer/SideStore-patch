@@ -49,8 +49,6 @@ enum AnisetteProvider {
         UserDefaults.standard.set(enabled, forKey: "anisetteServerAuto")
         if enabled {
             UserDefaults.standard.useOnDeviceAnisette = false
-            // Auto tries multiple servers — allow rotation across Mac candidates
-            UserDefaults.standard.disableAnisetteRotation = false
             if UserDefaults.standard.menuAnisetteURL.isEmpty {
                 UserDefaults.standard.menuAnisetteURL = fallbackServerURL
             }
@@ -157,7 +155,7 @@ enum AnisetteProvider {
         if UserDefaults.standard.object(forKey: "anisetteServerAuto") == nil {
             UserDefaults.standard.set(true, forKey: "anisetteServerAuto")
         }
-        // Only fill an empty URL; do not force jkcoxson over a manual pick.
+        // Only fill an empty URL; never override a server the user picked.
         if UserDefaults.standard.menuAnisetteURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             UserDefaults.standard.menuAnisetteURL = fallbackServerURL
         }
@@ -248,21 +246,19 @@ enum AnisetteProvider {
             ? fallbackServerURL
             : UserDefaults.standard.menuAnisetteURL
 
-        // SideInstaller Auto ON → candidates(); OFF → only the pick
+        // SideInstaller Auto ON → candidates(); OFF 或关闭轮换 → only the pick
         let orderedStrings: [String]
-        if isAutoEnabled {
+        if isAutoEnabled && !UserDefaults.standard.disableAnisetteRotation {
             orderedStrings = candidates(
                 pick: pick,
                 servers: serverUrlStrings,
                 serverNames: serverNames,
                 failing: RecentFailures.addresses()
             )
-            // Auto mode tries the candidate list (rotation on for failover)
-            UserDefaults.standard.disableAnisetteRotation = false
         } else {
             // Manual pick only — respect the server the user selected in Settings
             orderedStrings = [pick]
-            debugLog("[AnisetteProvider] Auto OFF — using only selected server: \(pick)")
+            debugLog("[AnisetteProvider] Auto=\(isAutoEnabled) rotation=\(!UserDefaults.standard.disableAnisetteRotation) — using only selected server: \(pick)")
         }
 
         let ordered = orderedStrings.compactMap { URL(string: $0) }
