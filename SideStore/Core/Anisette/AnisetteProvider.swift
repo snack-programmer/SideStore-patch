@@ -140,10 +140,10 @@ enum AnisetteProvider {
     // MARK: - Fetch
 
     static func fetch(handler: AnisetteServerHandler? = nil) async throws -> ALTAnisetteData {
-        // SideInstaller post-install parity for SideStore: ODA always off
+        // On-Device Anisette 是用户可见的选项：显式开启时按用户选择走本地 ADI。
         if UserDefaults.standard.useOnDeviceAnisette {
-            debugLog("[AnisetteProvider] On-device anisette forced off (SideInstaller 1.6.1)")
-            UserDefaults.standard.useOnDeviceAnisette = false
+            debugLog("[AnisetteProvider] Fetching anisette via On-Device Anisette (user setting)")
+            return try await OnDeviceAnisetteManager.shared.fetchAnisetteData()
         }
 
         // 机器身份只存 Keychain：SideSign 通过注入的存储读写 adi.pb。

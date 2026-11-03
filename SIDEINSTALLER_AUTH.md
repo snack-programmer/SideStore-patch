@@ -95,7 +95,7 @@ swiftc -frontend -parse SideStore/Core/Anisette/AnisetteProvider.swift
 
 ## 7. 已知限制
 
-- On-Device Anisette 在新流程下不可用，`AnisetteProvider.fetch` 会保持关闭；
-  设置界面的开关目前仍可见，后续应隐藏或标注为不可用。
+- On-Device Anisette（ODA）恢复为用户显式可选项：开启时走本地 ADI，不再被
+  `fetch` 静默关闭；选择 Auto（远程轮换）时会自动关闭 ODA，两者互斥。
 - 第三方 anisette 服务器需要手动添加，Auto 不再自动覆盖。
 - 2FA 重登总时长受 60s deadline 约束；单次请求超时可能使实际耗时略高。
