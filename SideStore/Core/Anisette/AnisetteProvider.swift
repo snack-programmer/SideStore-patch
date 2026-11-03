@@ -148,12 +148,9 @@ enum AnisetteProvider {
             UserDefaults.standard.useOnDeviceAnisette = false
         }
 
-        // One-time purge so Mac ADI can create a fresh identity
-        let migKey = "AnisetteMacADI.purgeAdi.v2"
-        if !UserDefaults.standard.bool(forKey: migKey) {
-            AnisetteConfigManager.shared.anisetteAdiBlob = nil
-            UserDefaults.standard.set(true, forKey: migKey)
-            debugLog("[AnisetteProvider] Purged stored adi.pb for Mac ADI re-provision")
+        // 机器身份只存 Keychain：SideSign 通过注入的存储读写 adi.pb。
+        if SideSign.AnisetteDataManager.shared.identityStorage == nil {
+            SideSign.AnisetteDataManager.shared.identityStorage = KeychainAdiBlobStorage()
         }
 
         // Default Auto ON only once — never rewrite the user's picked server.
@@ -240,19 +237,8 @@ enum AnisetteProvider {
         }
 
         // Ensure SideInstaller Mac extras exist even if community list omits them
-        let extras = [
-            ("SideStore (New)", "https://new.ani.sidestore.io"),
-            ("jkcoxson (Mac ADI)", "https://mac-ani.jkcoxson.com"),
-            ("iLoader (Mac ADI)", "https://ani.iloader.app"),
-            ("StikStore (Mac ADI)", "https://ani3.stikstore.app"),
-            ("StikStore 2 (Mac ADI)", "https://ani2.stikstore.app"),
-        ]
-        for (name, addr) in extras {
-            if !serverUrlStrings.contains(where: { normalized($0) == normalized(addr) }) {
-                serverUrlStrings.append(addr)
-                serverNames[normalized(addr)] = name
-            }
-        }
+        // Only official hosts are appended automatically; third-party ADI servers
+        // must be selected explicitly by the user.
 
         guard !serverUrlStrings.isEmpty else {
             throw AnisetteError.noServersConfigured
@@ -317,8 +303,8 @@ enum AnisetteProvider {
                 let lower = s.lowercased()
                 RecentFailures.record(activeServer.absoluteString, error: s)
                 if lower.contains("-45061") || lower.contains("not provisioned") || lower.contains("-80045")
-                    || lower.contains("-80046") || lower.contains("503") || lower.contains("could not connect") {
-                    debugLog("[AnisetteProvider] ADI/auth error — purging adi.pb")
+                    || lower.contains("-80046") || lower.contains("invalid anisette") {
+                    debugLog("[AnisetteProvider] ADI identity error — purging adi.pb")
                     AnisetteConfigManager.shared.anisetteAdiBlob = nil
                 }
                 if let anisetteError = error as? SideSign.AnisetteError,
@@ -344,10 +330,8 @@ enum AnisetteProvider {
         )
 
         if let freshBlob = newAdiBlob {
-            let b64 = freshBlob.base64EncodedString()
-            AnisetteConfigManager.shared.anisetteAdiBlob = b64
-            // SideSign post-SMS OTP refresh needs same adi.pb (SideInstaller get_headers)
-            UserDefaults.standard.set(b64, forKey: "SideSign.anisetteAdiBlob")
+            // adi.pb 只写 Keychain（通过 AnisetteConfigManager），不再复制到 UserDefaults
+            AnisetteConfigManager.shared.anisetteAdiBlob = freshBlob.base64EncodedString()
         }
 
         // Keep activeMode so SideSign can refresh OTP after 2FA (SideInstaller get_anisette_data)

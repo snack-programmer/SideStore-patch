@@ -57,11 +57,18 @@ public final class AppBootManager {
         // Also clear any file-based overrides
         AnisetteConfigManager.shared.resetToDefaults()
 
-        // 5. Fresh adi.pb so Apple issues a new Mac identity (asks for code once more)
-        AnisetteConfigManager.shared.anisetteAdiBlob = nil
+        // 注意：不再清空 adi.pb。身份损坏时由 AnisetteProvider 在明确的
+        // 身份类错误（-45061/-80045/-80046）上按需重建，避免启动即销毁用户机器身份。
 
         ud.set(true, forKey: key)
-        debugLog("[AppBootManager] Applied SideInstaller 1.6.1 anisette migration (Mac path, ODA off, rotation off, SideStore New, adi.pb purged)")
+        debugLog("[AppBootManager] Applied SideInstaller 1.6.1 anisette migration (Mac path, ODA off, rotation off, SideStore New)")
+    }
+
+    /// 清理旧版本写入 UserDefaults 的 adi.pb 明文副本（现在只存 Keychain）。
+    private nonisolated func removeLegacyPlaintextAdiBlobIfNeeded() {
+        guard UserDefaults.standard.object(forKey: "SideSign.anisetteAdiBlob") != nil else { return }
+        UserDefaults.standard.removeObject(forKey: "SideSign.anisetteAdiBlob")
+        debugLog("[AppBootManager] Removed legacy plaintext adi.pb from UserDefaults")
     }
 
     public nonisolated func startMinimuxer(pairingFile: String) async throws {
@@ -144,6 +151,7 @@ public final class AppBootManager {
 
         // SideInstaller 1.6.1 parity — must run before any anisette/auth work
         applySideInstallerAnisetteMigrationIfNeeded()
+        removeLegacyPlaintextAdiBlobIfNeeded()
         
         async let jitCheck: Void = {
             debugLog("[AppBootManager] performBootSequence(): JIT check starting")

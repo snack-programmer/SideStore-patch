@@ -102,25 +102,10 @@ public enum AppConstants {
 
         public enum Servers {
             public static let defaultSource        = "https://servers.sidestore.io/servers.json"
-            // SideInstaller 1.6.1: SideStore (New) first — Mac ADI library (fixes -80046)
-            public static let defaultServerURL     = "https://ani.jkcoxson.com"        // jkcoxson working Mac ADI
-            public static let secondaryServerURL   = "https://mac-ani.jkcoxson.com"    // jkcoxson Mac
-            public static let tertiaryServerURL    = "https://ani.iloader.app"         // iLoader (Mac ADI)
+            // 官方 SideStore (New) Mac ADI 作为默认；第三方服务器仅由用户显式选择
+            public static let defaultServerURL     = "https://new.ani.sidestore.io"
             public static let connectivityCheckURL = URL(string: "https://www.apple.com/library/test/success.html")!
 
-            /// SideInstaller macADIOrder — Auto tries these hosts first (Mac ADI library).
-            public static let macADIOrder: [String] = [
-                "new.ani.sidestore.io",
-                "mac-ani.jkcoxson.com",
-                "ani.iloader.app",
-                "ani3.stikstore.app",
-                "ani2.stikstore.app",
-                "ani.sidestore.io",
-            ]
-            public static let macADIHosts: Set<String> = Set(macADIOrder)
-            public static let windowsADIHosts: Set<String> = [
-                "win.ani.sidestore.io",
-            ]
             /// SideInstaller MAC_CLIENT_INFO — current Mac (servers still name 10.12)
             public static let macClientInfo = "<MacBookPro18,3> <macOS;26.6;25F84> <com.apple.AuthKit/1 (com.apple.akd/1.0)>"
             public static let macUserAgent  = "AuthKit/1 (Macintosh; OS X 26.6) (com.apple.akd/1.0)"

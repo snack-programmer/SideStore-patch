@@ -272,3 +272,14 @@ public actor AnisetteConfigManager {
         return FileManager.default.fileExists(atPath: configFileURL.path)
     }
 }
+
+/// SideSign 的机器身份存储实现：adi.pb 只落在 Keychain，不进 UserDefaults。
+struct KeychainAdiBlobStorage: AnisetteIdentityStorage {
+    func loadAdiBlob() -> Data? {
+        AnisetteConfigManager.shared.anisetteAdiBlob.flatMap { Data(base64Encoded: $0) }
+    }
+
+    func saveAdiBlob(_ blob: Data) {
+        AnisetteConfigManager.shared.anisetteAdiBlob = blob.base64EncodedString()
+    }
+}

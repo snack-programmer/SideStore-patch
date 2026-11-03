@@ -572,7 +572,7 @@ private struct AddCustomAnisetteServerSheet: View {
             Section(
                 header: Text("Custom Anisette Server"),
                 footer: Text(
-                    "Enter an anisette-v3 URL. Prefer Windows ADI hosts (for example, https://ani.jkcoxson.com or https://win.ani.sidestore.io) for Apple ID sign-in."
+                    "Enter an anisette-v3 URL. The official SideStore server is recommended; third-party servers receive your device's anisette identity, so only use hosts you trust."
                 )
             ) {
                 TextField("Name (optional)", text: $name)
