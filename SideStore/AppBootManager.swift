@@ -145,11 +145,11 @@ public final class AppBootManager {
     public nonisolated func performBootSequence() async {
         debugLog("[AppBootManager] performBootSequence() entered")
         defer { debugLog("[AppBootManager] performBootSequence() exited") }
-
+        
         // SideInstaller 1.6.1 parity — must run before any anisette/auth work
         applySideInstallerAnisetteMigrationIfNeeded()
         removeLegacyPlaintextAdiBlobIfNeeded()
-        
+
         async let jitCheck: Void = {
             debugLog("[AppBootManager] performBootSequence(): JIT check starting")
             defer { debugLog("[AppBootManager] performBootSequence(): JIT check completed") }

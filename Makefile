@@ -385,3 +385,7 @@ clean-sidebackup:
 clean: clean-sidebackup
 	@rm -rf SideStore.ipa
 	@rm -rf build/
+
+## Lint: check changed Swift files for whitespace/CRLF/conflict markers (BASE=origin/develop)
+style-check:
+	@scripts/ci/style-check --changed $(or $(BASE),origin/develop)

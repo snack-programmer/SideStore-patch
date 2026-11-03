@@ -213,7 +213,7 @@ final class SignInOperation: BaseStandaloneOperation<StandaloneOperationContext,
                 reportProgress(stepWeight * 3)
             } else {
                 self.debugLog("[SignInOperation] Device registration skipped by user.")
-               await self.signInHandler.showDeviceRegistrationSkipAcknowledgment()
+                await self.signInHandler.showDeviceRegistrationSkipAcknowledgment()
             }
         }
 
@@ -231,7 +231,7 @@ final class SignInOperation: BaseStandaloneOperation<StandaloneOperationContext,
             case .failure(let error):
                 self.debugLog("[SignInOperation] finalizeAuthentication: Failure result - \(error.localizedDescription)")
                 await self.signInHandler.complete()
-               self.verboseLog("[SignInOperation] finalizeAuthentication: invoked auth complete for .failure case...")
+                self.verboseLog("[SignInOperation] finalizeAuthentication: invoked auth complete for .failure case...")
                 
             case .success(let result):
                 let team = result.team
@@ -242,7 +242,7 @@ final class SignInOperation: BaseStandaloneOperation<StandaloneOperationContext,
                 
                 var didResign = false
                 if !self.skipResign,
-                    let signingCertificate = certificate,
+                   let signingCertificate = certificate,
                    !self.skipCertificateProvisioning,
                    UserDefaults.standard.isDeviceRegistered
                 {

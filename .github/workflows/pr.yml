@@ -17,6 +17,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  style:
+    name: Swift style (changed files)
+    if: ${{ github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Style check
+        run: scripts/ci/style-check --changed "origin/${{ github.base_ref }}"
+
   build:
     name: Build and upload SideStore
     if: ${{ github.event.pull_request.draft == false }}

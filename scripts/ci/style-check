@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+#
+# 轻量 Swift 风格检查（无外部依赖）。
+# 只检查客观、可自动判定的规则，避免与既有 Xcode 对齐风格冲突：
+#   - CRLF 行尾
+#   - Tab 缩进
+#   - 行尾空白（只判定有内容的行；空行的缩进不计，免得历史文件被迫重排）
+#   - 文件末尾缺少换行
+#   - 合并冲突标记
+#
+# 用法：
+#   scripts/ci/style-check.sh                 # 检查整个仓库
+#   scripts/ci/style-check.sh --changed BASE  # 只检查相对 BASE 新增的行
+#
+# --changed 只检查新增行：存量代码的风格问题不该被顺带清洗，
+# 否则改一行就会重排整个文件，diff 里全是与本次修改无关的噪声。
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$ROOT"
+
+MODE="all"
+BASE=""
+if [[ "${1:-}" == "--changed" ]]; then
+    MODE="changed"
+    BASE="${2:-}"
+    if [[ -z "$BASE" ]]; then
+        echo "usage: $0 --changed <git-base>" >&2
+        exit 2
+    fi
+fi
+
+collect_files() {
+    if [[ "$MODE" == "changed" ]]; then
+        git diff --name-only --diff-filter=ACMR "$BASE"...HEAD -- '*.swift' 2>/dev/null \
+            | while IFS= read -r f; do [[ -f "$f" ]] && printf '%s\n' "$f"; done
+    else
+        find . -name '*.swift' \
+            -not -path './.git/*' \
+            -not -path './.build/*' \
+            -not -path './Dependencies/*' \
+            -not -path './Pods/*' \
+            -print | sed 's|^\./||'
+    fi
+}
+
+# 输出 "行号:内容" 记录：全仓库模式取整个文件，--changed 模式只取新增行。
+collect_records() {
+    if [[ "$MODE" == "changed" ]]; then
+        git diff -U0 --no-color "$BASE"...HEAD -- "$1" | awk '
+            /^@@/ {
+                if (match($0, /\+[0-9]+/)) {
+                    line = substr($0, RSTART + 1, RLENGTH - 1) + 0
+                }
+                next
+            }
+            /^\+\+\+/ { next }
+            /^\+/ { printf "%d:%s\n", line, substr($0, 2); line++; next }
+            /^ / { line++; next }
+        '
+    else
+        awk '{ printf "%d:%s\n", NR, $0 }' "$1"
+    fi
+}
+
+# 每个文件每种规则只报第一处，输出条数即失败数。
+scan_records() {
+    awk -v file="$1" '
+        {
+            sep = index($0, ":")
+            line = substr($0, 1, sep - 1)
+            text = substr($0, sep + 1)
+        }
+        !crlf && index(text, "\r") {
+            printf "CRLF: %s:%s\n", file, line
+            crlf = 1
+        }
+        !tab && index(text, "\t") {
+            printf "TAB: %s:%s\n", file, line
+            tab = 1
+        }
+        !trail && text !~ /^[ \t]*$/ && text ~ /[ \t]$/ {
+            printf "TRAILING-WHITESPACE: %s:%s\n", file, line
+            trail = 1
+        }
+        !conflict && text ~ /^(<<<<<<<|=======|>>>>>>>)/ {
+            printf "CONFLICT-MARKER: %s:%s\n", file, line
+            conflict = 1
+        }
+        END { exit (crlf + tab + trail + conflict > 0 ? 1 : 0) }
+    '
+}
+
+is_new_file() {
+    git diff --name-status "$BASE"...HEAD -- "$1" 2>/dev/null | grep -q '^A'
+}
+
+checked=0
+failures=0
+
+while IFS= read -r file; do
+    [[ -z "$file" ]] && continue
+    checked=$((checked + 1))
+
+    records="$(collect_records "$file")"
+    [[ -z "$records" ]] && continue
+
+    if ! printf '%s\n' "$records" | scan_records "$file"; then
+        failures=$((failures + 1))
+    fi
+
+    # 末尾换行只对整文件有意义：全仓库模式检查全部文件，改动模式只看新增文件。
+    if [[ "$MODE" == "all" ]] || is_new_file "$file"; then
+        if [[ -n "$(tail -c 1 "$file")" ]]; then
+            echo "NO-FINAL-NEWLINE: $file"
+            failures=$((failures + 1))
+        fi
+    fi
+done < <(collect_files)
+
+echo "style-check: $checked file(s), $failures issue(s)"
+exit $(( failures > 0 ? 1 : 0 ))

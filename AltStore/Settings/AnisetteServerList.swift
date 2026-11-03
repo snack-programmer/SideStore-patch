@@ -633,7 +633,7 @@ struct AnisetteServersView: View {
         self.onResetAdiPb = onResetAdiPb
     }
 
-    
+
     // MARK: - SideInstaller Anisette Choice (exact Engine.anisetteAuto UI)
 
     private enum AnisetteChoice: Hashable {
